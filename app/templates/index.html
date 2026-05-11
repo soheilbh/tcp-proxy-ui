@@ -12,6 +12,14 @@
   </div>
 </header>
 
+<div class="banner banner-info">
+  <strong>Host reachability.</strong>
+  <strong>Running</strong> only means this process is accepting TCP connections <em>inside the container</em> on the listen port.
+  To reach that port from another machine (or from the Docker host), you must publish it on this service the same way you did for <code>17000</code>
+  (for example <code>- "15000:15000"</code> for listen port 15000 in Compose, or the equivalent published port in Portainer / Swarm / Kubernetes).
+  This app does not use the Docker socket, so it cannot open host ports automatically.
+</div>
+
 {% if show_env_auth_tip %}
 <div class="banner">
   <strong>Credential mode.</strong> You are using the one-time stored admin account from <code>/setup</code>.

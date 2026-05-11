@@ -371,6 +371,22 @@ tr:hover td {
   color: var(--warn);
 }
 
+.banner-info {
+  border-color: rgba(61, 214, 195, 0.35);
+  background: rgba(61, 214, 195, 0.1);
+  color: #c8ebe6;
+}
+
+.banner-info strong {
+  color: var(--accent);
+}
+
+.banner-info code {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: #e8fdf9;
+}
+
 .empty {
   text-align: center;
   padding: 2.5rem 1rem;

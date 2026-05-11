@@ -49,6 +49,13 @@ ports:
 
 Replace those numbers with the listen ports you actually configure in the UI.
 
+### Troubleshooting: UI says Running but the port is not reachable
+
+- **Running** in the dashboard means asyncio is listening on `0.0.0.0:<listen_port>` **inside the container**. It does **not** mean Docker (or your orchestrator) published that port on the host.
+- If connections to `host:<listen_port>` are refused or time out, add **`"<listen_port>:<listen_port>"`** under `ports:` for the same service that runs this app (or the equivalent in Portainer / Kubernetes). This matches what you do for a raw TCP forwarder such as `alpine/socat`: the process listens in the container network namespace; the platform maps it outward.
+- After changing published ports, **recreate** the container (Compose: `docker compose up -d --force-recreate`).
+- If the target speaks something other than HTTP, opening `http://host:port/` in a browser may not behave as expected even when TCP forwarding works; use a client that matches the protocol (for example `curl`, `openssl s_client`, or your application client).
+
 ## Portainer
 
 1. Create a new stack from this repository’s `docker-compose.yml` (or paste an equivalent compose file).

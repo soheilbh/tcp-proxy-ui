@@ -1,13 +1,14 @@
-# Example stack: dashboard on 17000. Publish every TCP listen port you define
-# in the UI (e.g. 18086) in addition to the dashboard port.
+# Dashboard on 17000. For EVERY "Listen port" P you use in the UI and want reachable
+# from outside the container, add a matching publish line:  "P:P"
+# (same pattern as alpine/socat: ports alone expose the listener to the host).
 services:
   proxy-manager:
     build: .
     container_name: tcp-proxy-manager
     ports:
       - "17000:17000"
-      # - "18086:18086"   # example: map a route that listens on 18086 inside the container
-      # - "15000:15000"
+      # - "18086:18086"   # if a route listens on 18086 inside the container
+      # - "15000:15000"   # if a route listens on 15000 inside the container
     # environment:
     #   APP_USERNAME: "admin"
     #   APP_PASSWORD: "replace-with-a-long-random-secret"
