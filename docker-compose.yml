@@ -7,8 +7,9 @@ services:
     container_name: tcp-proxy-manager
     ports:
       - "17000:17000"
-      # - "18086:18086"   # if a route listens on 18086 inside the container
-      # - "15000:15000"   # if a route listens on 15000 inside the container
+      # Publish the same numbers as your UI "Listen port" values (host:container).
+      - "18086:18086"
+      - "15000:15000"
     # environment:
     #   APP_USERNAME: "admin"
     #   APP_PASSWORD: "replace-with-a-long-random-secret"
