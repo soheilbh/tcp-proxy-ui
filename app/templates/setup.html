@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Initial setup · TCP Proxy Manager{% endblock %}
+{% block body %}
+<section class="card setup-card">
+  <div class="brand" style="margin-bottom: 0.5rem;">
+    <h1 style="font-size: 1.35rem;">Secure this dashboard</h1>
+  </div>
+  <p class="lead">
+    No <code>APP_USERNAME</code> / <code>APP_PASSWORD</code> environment pair was detected.
+    Create a local admin account (stored as a password hash in SQLite). You will use HTTP Basic authentication in the browser afterward.
+  </p>
+  <form id="setup-form" class="grid-form" autocomplete="off">
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" required minlength="1" maxlength="64" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required minlength="8" maxlength="72" />
+    </div>
+    <div class="field actions-row" style="grid-column: span 12;">
+      <button class="btn btn-primary" type="submit">Save and continue</button>
+    </div>
+    <div class="field" style="grid-column: span 12;">
+      <p class="error-toast" id="setup-error" role="alert"></p>
+    </div>
+  </form>
+  <p class="setup-foot">
+    Prefer environment-based login? Set <code>APP_USERNAME</code> and <code>APP_PASSWORD</code> on the container and skip this page entirely.
+  </p>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("setup-form");
+  const err = document.getElementById("setup-error");
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    err.classList.remove("visible");
+    err.textContent = "";
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    try {
+      const res = await fetch("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const d = data.detail;
+        const msg = Array.isArray(d) ? d.map((x) => x.msg || x).join(", ") : (d || res.statusText);
+        throw new Error(msg);
+      }
+      window.location.href = "/";
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add("visible");
+    }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · TCP Proxy Manager{% endblock %}
+{% block body %}
+<header class="top-bar">
+  <div class="brand">
+    <h1>TCP routes</h1>
+    <p>Define listeners inside the app, then publish those ports in Docker or your orchestrator. Nothing starts until you run it (except routes you mark for auto-start).</p>
+  </div>
+  <div class="pill" id="conn-pill" title="Dashboard connectivity">
+    <span class="pill-dot"></span>
+    <span id="conn-label">Live</span>
+  </div>
+</header>
+
+{% if show_env_auth_tip %}
+<div class="banner">
+  <strong>Credential mode.</strong> You are using the one-time stored admin account from <code>/setup</code>.
+  For production, set <code>APP_USERNAME</code> and <code>APP_PASSWORD</code> in the container environment and remove reliance on the database login (see README).
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>Add route</h2>
+  <form id="create-form" class="grid-form" autocomplete="off">
+    <div class="field half">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" required maxlength="128" placeholder="e.g. cache-tier" />
+    </div>
+    <div class="field half">
+      <label for="listen_port">Listen port</label>
+      <input id="listen_port" name="listen_port" type="number" required min="1024" max="65535" placeholder="18086" />
+    </div>
+    <div class="field half">
+      <label for="target_host">Target host</label>
+      <input id="target_host" name="target_host" type="text" required maxlength="255" placeholder="internal.service.local" />
+    </div>
+    <div class="field half">
+      <label for="target_port">Target port</label>
+      <input id="target_port" name="target_port" type="number" required min="1" max="65535" placeholder="6379" />
+    </div>
+    <div class="field third">
+      <label class="check" for="auto_start">
+        <input id="auto_start" name="auto_start" type="checkbox" />
+        <span>Auto-start when the container starts</span>
+      </label>
+    </div>
+    <div class="field actions-row" style="grid-column: span 12;">
+      <button class="btn btn-primary" type="submit">Create route</button>
+      <span class="error-toast" id="form-error" role="alert"></span>
+    </div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Active definitions</h2>
+  <div class="table-wrap">
+    <table aria-label="Proxy routes">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Listen</th>
+          <th>Target</th>
+          <th>Status</th>
+          <th>Connections</th>
+          <th>Auto</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="proxy-rows">
+        <tr><td colspan="7" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const rowsEl = document.getElementById("proxy-rows");
+  const form = document.getElementById("create-form");
+  const formError = document.getElementById("form-error");
+  const connPill = document.getElementById("conn-pill");
+  const connLabel = document.getElementById("conn-label");
+
+  function showFormError(msg) {
+    if (!msg) {
+      formError.textContent = "";
+      formError.classList.remove("visible");
+      return;
+    }
+    formError.textContent = msg;
+    formError.classList.add("visible");
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: {
+        "Accept": "application/json",
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = { detail: text || res.statusText };
+    }
+    if (!res.ok) {
+      const detail = data && (data.detail || data.message);
+      const msg = Array.isArray(detail)
+        ? detail.map((d) => d.msg || d).join(", ")
+        : (detail || res.statusText);
+      const err = new Error(msg || "Request failed");
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function renderRows(items) {
+    if (!items.length) {
+      rowsEl.innerHTML = '<tr><td colspan="7" class="empty">No routes yet. Add one above.</td></tr>';
+      return;
+    }
+    rowsEl.innerHTML = items
+      .map((p) => {
+        const running = !!p.running;
+        const target = `${escapeHtml(p.target_host)}:${p.target_port}`;
+        return `
+          <tr data-id="${p.id}">
+            <td><strong>${escapeHtml(p.name)}</strong></td>
+            <td class="mono">${p.listen_port}</td>
+            <td class="mono">${target}</td>
+            <td class="status-cell">
+              <span class="badge ${running ? "on" : "off"}">${running ? "Running" : "Stopped"}</span>
+            </td>
+            <td class="conn">${p.active_connections ?? 0}</td>
+            <td><span class="badge ${p.auto_start ? "on" : "off"}">${p.auto_start ? "Yes" : "No"}</span></td>
+            <td class="row-actions">
+              ${running
+                ? `<button type="button" class="btn btn-ghost" data-action="stop">Stop</button>`
+                : `<button type="button" class="btn btn-primary" data-action="start">Start</button>`}
+              <button type="button" class="btn btn-danger" data-action="delete">Delete</button>
+            </td>
+          </tr>`;
+      })
+      .join("");
+
+    rowsEl.querySelectorAll("button[data-action]").forEach((btn) => {
+      btn.addEventListener("click", onRowAction);
+    });
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  async function refresh() {
+    try {
+      const data = await api("/api/proxies");
+      renderRows(data);
+      connPill.classList.add("running");
+      connLabel.textContent = "API reachable";
+    } catch (e) {
+      connPill.classList.remove("running");
+      connLabel.textContent = "Offline";
+      rowsEl.innerHTML = `<tr><td colspan="7" class="empty">Could not load routes (${escapeHtml(e.message)}).</td></tr>`;
+    }
+  }
+
+  async function onRowAction(ev) {
+    const btn = ev.currentTarget;
+    const tr = btn.closest("tr");
+    const id = tr && tr.getAttribute("data-id");
+    const action = btn.getAttribute("data-action");
+    if (!id || !action) return;
+    btn.disabled = true;
+    try {
+      if (action === "delete") {
+        if (!confirm("Delete this route? The listener stops if it was running.")) return;
+        await api(`/api/proxies/${id}`, { method: "DELETE" });
+      } else if (action === "start") {
+        await api(`/api/proxies/${id}/start`, { method: "POST" });
+      } else if (action === "stop") {
+        await api(`/api/proxies/${id}/stop`, { method: "POST" });
+      }
+      await refresh();
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    showFormError("");
+    const payload = {
+      name: document.getElementById("name").value.trim(),
+      listen_port: Number(document.getElementById("listen_port").value),
+      target_host: document.getElementById("target_host").value.trim(),
+      target_port: Number(document.getElementById("target_port").value),
+      auto_start: document.getElementById("auto_start").checked,
+    };
+    try {
+      await api("/api/proxies", { method: "POST", body: JSON.stringify(payload) });
+      form.reset();
+      await refresh();
+    } catch (e) {
+      showFormError(e.message);
+    }
+  });
+
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+{% endblock %}

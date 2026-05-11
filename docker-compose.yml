@@ -1,0 +1,18 @@
+# Example stack: dashboard on 17000. Publish every TCP listen port you define
+# in the UI (e.g. 18086) in addition to the dashboard port.
+services:
+  proxy-manager:
+    build: .
+    container_name: tcp-proxy-manager
+    ports:
+      - "17000:17000"
+      # - "18086:18086"   # example: map a route that listens on 18086 inside the container
+      # - "15000:15000"
+    # environment:
+    #   APP_USERNAME: "admin"
+    #   APP_PASSWORD: "replace-with-a-long-random-secret"
+    volumes:
+      - proxy_manager_data:/data
+
+volumes:
+  proxy_manager_data:
